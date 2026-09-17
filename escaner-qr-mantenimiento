@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Escanear QR</title>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Roboto, Arial, sans-serif; margin:0; padding:0; background:#2c3e50; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .contenedor { width:100%; max-width:420px; padding:20px; text-align:center; }
+    h1 { font-size:18px; color:white; margin-bottom:16px; }
+    #reader { width:100%; border-radius:12px; overflow:hidden; }
+    #estado { margin-top:14px; font-size:15px; color:white; min-height:22px; }
+    .error { color:#ff6b6b; }
+    .ok { color:#2ecc71; }
+    button { width:100%; padding:14px; font-size:15px; border:none; border-radius:10px; margin-top:12px; background:#7f8c8d; color:white; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="contenedor">
+    <h1>Apuntá la cámara al código QR</h1>
+    <div id="reader"></div>
+    <div id="estado"></div>
+    <button onclick="cerrarSinLeer()">Cancelar</button>
+  </div>
+
+  <script>
+    // El token viaja por la URL, generado por la propia app del técnico
+    // (no por ningún servidor) — sirve solo para que esa app reconozca que
+    // este resultado viene de la ventana que ELLA misma abrió, no de otro lado.
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    let html5QrCode;
+    let yaLeido = false;
+
+    if (!token) {
+      document.getElementById('estado').innerHTML = '<span class="error">Falta el token de la sesión. Volvé a la app y tocá "Escanear QR" de nuevo.</span>';
+    } else {
+      iniciar();
+    }
+
+    function iniciar() {
+      html5QrCode = new Html5Qrcode('reader');
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      html5QrCode.start(
+        { facingMode: 'environment' },
+        config,
+        function(decodedText) {
+          if (yaLeido) return;
+          yaLeido = true;
+          detenerCamara().then(function() { enviarResultado(decodedText); });
+        },
+        function() {}
+      ).catch(function(err) {
+        document.getElementById('estado').innerHTML = '<span class="error">No se pudo acceder a la cámara: ' + err + '</span>';
+      });
+    }
+
+    function detenerCamara() {
+      if (html5QrCode) {
+        return html5QrCode.stop().then(function() { return html5QrCode.clear(); }).catch(function() {});
+      }
+      return Promise.resolve();
+    }
+
+    function enviarResultado(datoQR) {
+      document.getElementById('estado').innerHTML = '<span class="ok">✔ Leído, volviendo a la app...</span>';
+      if (window.opener) {
+        window.opener.postMessage({ token: token, qr: datoQR }, '*');
+      }
+      setTimeout(function() { window.close(); }, 400);
+    }
+
+    function cerrarSinLeer() {
+      detenerCamara().then(function() { window.close(); });
+    }
+  </script>
+</body>
+</html>
